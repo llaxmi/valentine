@@ -1,12 +1,18 @@
 import { motion } from "framer-motion";
+import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 
 interface LetterProps {
   onNext: () => void;
   text: string;
+  buttonLabel?: string;
 }
 
-const Letter: React.FC<LetterProps> = ({ onNext, text }) => {
+export default function Letter({
+  onNext,
+  text,
+  buttonLabel = "Continue to the Question ❤️",
+}: LetterProps): ReactNode {
   const [displayedText, setDisplayedText] = useState("");
   const [index, setIndex] = useState(0);
 
@@ -87,6 +93,7 @@ const Letter: React.FC<LetterProps> = ({ onNext, text }) => {
             />
           )}
         </div>
+
         {/* Continue button */}
         {isComplete && (
           <motion.div
@@ -101,15 +108,11 @@ const Letter: React.FC<LetterProps> = ({ onNext, text }) => {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
-              Continue to the Question ❤️
+              {buttonLabel}
             </motion.button>
           </motion.div>
         )}
       </div>
-
-
     </motion.div>
   );
-};
-
-export default Letter;
+}

@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import type { ChangeEvent } from "react";
+import type { ChangeEvent, ReactNode } from "react";
 import { useMemo } from "react";
 
 export interface LetterData {
@@ -13,7 +13,7 @@ export interface LetterData {
 }
 
 export const defaultLetter: LetterData = {
-  recipient: "",
+  recipient: "my dearest",
   opening:
     "I've been wanting to ask you something special for a while now. You make every day brighter and I love spending time with you.",
   body:
@@ -32,29 +32,30 @@ interface ComposeLetterProps {
 
 const stickers = ["💌", "🌹", "🐻", "🍓", "🧸", "🎈", "💫", "🎀"];
 
-const getToneLabel = (tone: number) => {
+function getToneLabel(tone: number): string {
   if (tone < 25) return "Playful";
   if (tone < 50) return "Sweet";
   if (tone < 75) return "Melted";
   return "Hopeless romantic";
-};
+}
 
-const ComposeLetter = ({ data, onChange, onSeal }: ComposeLetterProps) => {
+export default function ComposeLetter({
+  data,
+  onChange,
+  onSeal,
+}: ComposeLetterProps): ReactNode {
   const toneLabel = useMemo(() => getToneLabel(data.tone), [data.tone]);
 
-  const handleInput = (
-    field: keyof LetterData,
-    value: string | number,
-  ) => {
+  function handleInput(field: keyof LetterData, value: string | number): void {
     onChange({ ...data, [field]: value } as LetterData);
-  };
+  }
 
-  const handleTextArea = (
+  function handleTextArea(
     event: ChangeEvent<HTMLTextAreaElement>,
     field: keyof LetterData,
-  ) => {
+  ): void {
     handleInput(field, event.target.value);
-  };
+  }
 
   const bodyCount = `${data.body.length}/600`;
 
@@ -224,9 +225,10 @@ const ComposeLetter = ({ data, onChange, onSeal }: ComposeLetterProps) => {
             <motion.button
               type="button"
               onClick={onSeal}
-              className="btn-primary w-full py-3 sm:py-4 text-base sm:text-lg"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              disabled={!data.recipient.trim()}
+              className="btn-primary w-full py-3 sm:py-4 text-base sm:text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              whileHover={data.recipient.trim() ? { scale: 1.02 } : {}}
+              whileTap={data.recipient.trim() ? { scale: 0.98 } : {}}
             >
               Seal & Send ✉️
             </motion.button>
@@ -242,6 +244,4 @@ const ComposeLetter = ({ data, onChange, onSeal }: ComposeLetterProps) => {
       </div>
     </motion.div>
   );
-};
-
-export default ComposeLetter;
+}

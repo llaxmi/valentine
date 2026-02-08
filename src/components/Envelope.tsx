@@ -1,18 +1,23 @@
 import { motion } from "framer-motion";
+import type { ReactNode } from "react";
 import { useState } from "react";
 
 interface EnvelopeProps {
   onOpen: () => void;
+  variant?: "sender" | "recipient";
 }
 
-const Envelope: React.FC<EnvelopeProps> = ({ onOpen }) => {
+export default function Envelope({
+  onOpen,
+  variant = "recipient",
+}: EnvelopeProps): ReactNode {
   const [isOpen, setIsOpen] = useState(false);
 
-  const handleOpen = () => {
+  function handleOpen(): void {
     if (isOpen) return;
     setIsOpen(true);
     setTimeout(onOpen, 1500);
-  };
+  }
 
   return (
     <motion.div
@@ -73,9 +78,7 @@ const Envelope: React.FC<EnvelopeProps> = ({ onOpen }) => {
             className="absolute inset-4 bg-white rounded shadow-sm z-10 flex items-center justify-center"
             animate={isOpen ? { y: -140, opacity: 0 } : { y: 0 }}
             transition={{ delay: 0.5, duration: 0.8 }}
-          >
-
-          </motion.div>
+          />
 
           {/* Front pocket - Left */}
           <div
@@ -90,12 +93,10 @@ const Envelope: React.FC<EnvelopeProps> = ({ onOpen }) => {
           <div
             className="absolute bottom-0 right-0 w-0 h-0 z-20"
             style={{
-              borderBottom: "186px solid #c9908a ",
+              borderBottom: "186px solid #c9908a",
               borderLeft: "200px solid transparent",
             }}
           />
-
-
         </motion.div>
       </div>
 
@@ -109,12 +110,16 @@ const Envelope: React.FC<EnvelopeProps> = ({ onOpen }) => {
           animate={{ y: [0, -4, 0] }}
           transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
         >
-          Tap to break the seal
+          {variant === "sender"
+            ? "Tap to preview your letter"
+            : "Tap to break the seal"}
         </motion.p>
-        <p className="text-soft-ink/50 text-sm mt-2">A love letter awaits...</p>
+        <p className="text-soft-ink/50 text-sm mt-2">
+          {variant === "sender"
+            ? "See how it looks inside the envelope"
+            : "A love letter awaits..."}
+        </p>
       </motion.div>
     </motion.div>
   );
-};
-
-export default Envelope;
+}
