@@ -1,117 +1,100 @@
-import confetti from "canvas-confetti";
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useMemo, useState } from "react";
-import BlurText from "./components/BlurText";
-import type { LetterData } from "./components/ComposeLetter";
-import ComposeLetter, { defaultLetter } from "./components/ComposeLetter";
-import Envelope from "./components/Envelope";
-import Letter from "./components/Letter";
-import ShareActions from "./components/ShareActions";
+import type { ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import BlurText from "../components/BlurText";
+import type { LetterData } from "../components/ComposeLetter";
+import Envelope from "../components/Envelope";
+import Letter from "../components/Letter";
+import PageShell from "../components/PageShell";
+import { fetchLetter, markOpened, recordResponse } from "../lib/api";
+import { fireCelebrationConfetti } from "../lib/confetti";
+import { formatLetter, letterRowToData } from "../lib/letter";
 
-function App() {
-  const [step, setStep] = useState(0);
+const NO_BUTTON_PHRASES = [
+  "No",
+  "Are you sure?",
+  "Really sure?",
+  "Think again!",
+  "Last chance!",
+  "Surely not?",
+  "You might regret this!",
+  "Give it another thought!",
+  "Are you absolutely certain?",
+  "This could be a mistake!",
+  "Have a heart!",
+  "Don't be so cold!",
+  "Change of heart?",
+  "Wouldn't you reconsider?",
+  "Is that your final answer?",
+  "You're breaking my heart ;(",
+];
+
+export default function ViewerPage(): ReactNode {
+  const { id } = useParams<{ id: string }>();
+  const [step, setStep] = useState(1); // 1=envelope, 2=letter, 3=question, 4=celebration
+  const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
+  const [letterData, setLetterData] = useState<LetterData | null>(null);
+
   const [noCount, setNoCount] = useState(0);
   const [noButtonPos, setNoButtonPos] = useState({ x: 0, y: 0 });
   const [cursorHearts, setCursorHearts] = useState<
     { id: number; x: number; y: number }[]
   >([]);
-  const [letterData, setLetterData] = useState<LetterData>(() => defaultLetter);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const params = new URLSearchParams(window.location.search);
-    const shared = params.get("letter");
-
-    if (shared) {
-      try {
-        const decoded = JSON.parse(
-          decodeURIComponent(window.atob(shared)),
-        ) as Partial<LetterData>;
-        setLetterData({ ...defaultLetter, ...decoded });
-        params.delete("letter");
-        const query = params.toString();
-        const newUrl = `${window.location.pathname}${query ? `?${query}` : ""
-          }${window.location.hash}`;
-        window.history.replaceState({}, "", newUrl);
-        return;
-      } catch (error) {
-        console.error("Failed to decode shared letter", error);
-      }
+    if (!id) {
+      setFetchError(true);
+      setIsLoading(false);
+      return;
     }
-
-    const stored = window.localStorage.getItem("valentine-letter");
-    if (stored) {
-      try {
-        setLetterData(JSON.parse(stored));
-      } catch (error) {
-        console.error("Failed to parse stored letter", error);
+    fetchLetter(id).then((row) => {
+      if (row) {
+        setLetterData(letterRowToData(row));
+      } else {
+        setFetchError(true);
       }
+      setIsLoading(false);
+    });
+  }, [id]);
+
+  const formattedLetter = useMemo(
+    () => (letterData ? formatLetter(letterData) : ""),
+    [letterData],
+  );
+
+  const handleEnvelopeOpen = useCallback(async () => {
+    setStep(2);
+    if (id) {
+      const ok = await markOpened(id);
+      if (!ok) console.error("markOpened failed for letter", id);
     }
-  }, []);
+  }, [id]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem("valentine-letter", JSON.stringify(letterData));
-  }, [letterData]);
-
-  const formattedLetter = useMemo(() => {
-    const parts = [
-      letterData.recipient
-        ? `Hey ${letterData.recipient.trim()}!`
-        : "Hey there!",
-      letterData.opening || defaultLetter.opening,
-      letterData.body || defaultLetter.body,
-      letterData.signature
-        ? `❤️ ${letterData.signature.trim()}`
-        : defaultLetter.signature,
-    ];
-
-    if (letterData.postscript) parts.push(`P.S. ${letterData.postscript}`);
-    if (letterData.sticker) parts.push(letterData.sticker);
-
-    return parts.join("\n\n");
-  }, [letterData]);
-
-  const handleNoHover = () => {
+  function handleNoHover(): void {
     setNoButtonPos({
       x: Math.random() * 200 - 100,
       y: Math.random() * 200 - 100,
     });
     setNoCount((c) => c + 1);
-  };
+  }
 
-  const handleYesClick = () => {
+  async function handleYesClick(): Promise<void> {
     setStep(4);
+    fireCelebrationConfetti();
 
-    confetti({
-      particleCount: 100,
-      spread: 70,
-      origin: { y: 0.6 },
-      colors: ["#6B1B3D", "#D4698C", "#E8A5B8", "#FFF9F5"],
-    });
+    if (id) {
+      const ok = await recordResponse(id, "yes");
+      if (!ok) {
+        // Retry once after a short delay
+        await new Promise((r) => setTimeout(r, 1000));
+        await recordResponse(id, "yes");
+      }
+    }
+  }
 
-    const end = Date.now() + 3000;
-    (function frame() {
-      confetti({
-        particleCount: 3,
-        angle: 60,
-        spread: 55,
-        origin: { x: 0 },
-        colors: ["#6B1B3D", "#D4698C", "#E8A5B8", "#FFF9F5"],
-      });
-      confetti({
-        particleCount: 3,
-        angle: 120,
-        spread: 55,
-        origin: { x: 1 },
-        colors: ["#6B1B3D", "#D4698C", "#E8A5B8", "#FFF9F5"],
-      });
-      if (Date.now() < end) requestAnimationFrame(frame);
-    })();
-  };
-
-  const handleCardMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+  function handleCardMouseMove(e: React.MouseEvent<HTMLDivElement>): void {
     const rect = e.currentTarget.getBoundingClientRect();
     setCursorHearts((prev) => [
       ...prev.slice(-20),
@@ -121,52 +104,55 @@ function App() {
         y: e.clientY - rect.top,
       },
     ]);
-  };
+  }
 
-  const getNoButtonText = () => {
-    const phrases = [
-      "No",
-      "Are you sure?",
-      "Really sure?",
-      "Think again!",
-      "Last chance!",
-      "Surely not?",
-      "You might regret this!",
-      "Give it another thought!",
-      "Are you absolutely certain?",
-      "This could be a mistake!",
-      "Have a heart!",
-      "Don't be so cold!",
-      "Change of heart?",
-      "Wouldn't you reconsider?",
-      "Is that your final answer?",
-      "You're breaking my heart ;(",
-    ];
-    return phrases[Math.min(noCount, phrases.length - 1)];
-  };
+  if (isLoading) {
+    return (
+      <PageShell>
+        <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+          <motion.div
+            className="text-6xl"
+            animate={{ scale: [1, 1.3, 1] }}
+            transition={{ repeat: Infinity, duration: 1.2 }}
+          >
+            💌
+          </motion.div>
+          <p className="text-soft-ink text-lg">Loading your letter...</p>
+        </div>
+      </PageShell>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <PageShell>
+        <div className="flex flex-col items-center justify-center min-h-screen p-4">
+          <div className="love-card love-card--frosted love-card--elevated p-6 sm:p-8 max-w-md w-full text-center">
+            <p className="text-4xl mb-4">😢</p>
+            <h2 className="font-serif text-2xl font-bold text-burgundy mb-2">
+              Letter Not Found
+            </h2>
+            <p className="text-soft-ink mb-4">
+              This love letter seems to have gotten lost in the mail.
+            </p>
+            <Link
+              to="/"
+              className="btn-primary inline-block px-6 py-3"
+            >
+              Create Your Own
+            </Link>
+          </div>
+        </div>
+      </PageShell>
+    );
+  }
+
+  const noButtonText = NO_BUTTON_PHRASES[Math.min(noCount, NO_BUTTON_PHRASES.length - 1)];
 
   return (
-    <div className="relative w-full min-h-screen overflow-x-hidden">
-      {/* Ambient background effects */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[10%] left-[5%] w-64 h-64 sm:w-96 sm:h-96 bg-blush/20 rounded-full blur-3xl" />
-        <div className="absolute bottom-[20%] right-[10%] w-48 h-48 sm:w-80 sm:h-80 bg-soft-blush/30 rounded-full blur-3xl" />
-        <div className="absolute top-[60%] left-[50%] w-40 h-40 sm:w-64 sm:h-64 bg-deep-rose/10 rounded-full blur-3xl" />
-      </div>
-
-      {/* Content */}
-      <div className="relative z-10 flex flex-col items-center justify-center min-h-screen p-3 sm:p-4 py-6 sm:py-8">
+    <PageShell>
+      <div className="flex flex-col items-center justify-center min-h-screen p-3 sm:p-4 py-6 sm:py-8">
         <AnimatePresence mode="wait">
-          {/* Step 0: Compose Letter */}
-          {step === 0 && (
-            <ComposeLetter
-              key="compose"
-              data={letterData}
-              onChange={setLetterData}
-              onSeal={() => setStep(1)}
-            />
-          )}
-
           {/* Step 1: Envelope */}
           {step === 1 && (
             <motion.div
@@ -176,7 +162,7 @@ function App() {
               exit={{ opacity: 0, scale: 0.9 }}
               className="w-full flex items-center justify-center"
             >
-              <Envelope onOpen={() => setStep(2)} />
+              <Envelope onOpen={handleEnvelopeOpen} />
             </motion.div>
           )}
 
@@ -254,7 +240,7 @@ function App() {
                   }}
                   transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 >
-                  {getNoButtonText()}
+                  {noButtonText}
                 </motion.button>
               </div>
 
@@ -319,37 +305,10 @@ function App() {
                   ))}
                 </div>
               </div>
-
-              <ShareActions
-                letterText={formattedLetter}
-                data={letterData}
-                onEdit={() => {
-                  setStep(0);
-                  setNoCount(0);
-                  setNoButtonPos({ x: 0, y: 0 });
-                }}
-                className="w-full"
-              />
-
-              <motion.button
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 1 }}
-                onClick={() => {
-                  setStep(0);
-                  setNoCount(0);
-                  setNoButtonPos({ x: 0, y: 0 });
-                }}
-                className="text-burgundy hover:text-deep-rose font-semibold underline underline-offset-4 decoration-burgundy/30 hover:decoration-deep-rose/50 transition-colors text-sm sm:text-base"
-              >
-                Create another letter
-              </motion.button>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
-    </div>
+    </PageShell>
   );
 }
-
-export default App;

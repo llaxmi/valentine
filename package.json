@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@headlessui/react": "^1.7.18",
+    "@supabase/supabase-js": "^2.95.3",
     "cannon-es": "^0.20.0",
     "canvas-confetti": "^1.9.4",
     "clsx": "^2.1.1",

@@ -1,34 +1,29 @@
 import { motion } from "framer-motion";
-import { useCallback, useMemo, useState } from "react";
-import type { LetterData } from "./ComposeLetter";
+import type { ReactNode } from "react";
+import { useCallback, useState } from "react";
+import { buildRecipientUrl, buildStatusUrl } from "../lib/url";
 
 interface ShareActionsProps {
   letterText: string;
-  data: LetterData;
+  letterId?: string | null;
+  senderToken?: string | null;
+  isSaving?: boolean;
   onEdit: () => void;
   className?: string;
 }
 
-const ShareActions = ({
+export default function ShareActions({
   letterText,
-  data,
+  letterId,
+  senderToken,
+  isSaving,
   onEdit,
   className,
-}: ShareActionsProps) => {
+}: ShareActionsProps): ReactNode {
   const [shared, setShared] = useState(false);
+  const [statusCopied, setStatusCopied] = useState(false);
 
-  const sharePayload = useMemo(() => {
-    if (typeof window === "undefined") return "";
-    try {
-      const encoded = window.btoa(encodeURIComponent(JSON.stringify(data)));
-      const url = new URL(window.location.href);
-      url.searchParams.set("letter", encoded);
-      return url.toString();
-    } catch (error) {
-      console.error("Failed to generate share payload", error);
-      return window.location.href;
-    }
-  }, [data]);
+  const sharePayload = letterId ? buildRecipientUrl(letterId) : "";
 
   const handleShare = useCallback(async () => {
     if (typeof navigator === "undefined") return;
@@ -57,6 +52,17 @@ const ShareActions = ({
       }
     }
   }, [letterText, sharePayload]);
+
+  const handleCopyStatusLink = useCallback(async () => {
+    if (!senderToken || typeof navigator === "undefined") return;
+    try {
+      await navigator.clipboard.writeText(buildStatusUrl(senderToken));
+      setStatusCopied(true);
+      setTimeout(() => setStatusCopied(false), 2000);
+    } catch {
+      // ignore
+    }
+  }, [senderToken]);
 
   return (
     <motion.div
@@ -90,18 +96,59 @@ const ShareActions = ({
 
       <motion.button
         onClick={handleShare}
+        disabled={isSaving || !letterId}
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
-        whileHover={{ y: -2 }}
-        whileTap={{ scale: 0.98 }}
-        className="btn-primary w-full py-3 sm:py-4 text-base sm:text-lg flex items-center justify-center gap-2"
+        whileHover={!isSaving && letterId ? { y: -2 } : {}}
+        whileTap={!isSaving && letterId ? { scale: 0.98 } : {}}
+        className="btn-primary w-full py-3 sm:py-4 text-base sm:text-lg flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
       >
-        <span>{shared ? "✓" : "🔗"}</span>
-        <span>{shared ? "Link Copied!" : "Share with Your Valentine"}</span>
+        {isSaving ? (
+          <>
+            <motion.span
+              animate={{ rotate: 360 }}
+              transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+            >
+              ⏳
+            </motion.span>
+            <span>Saving...</span>
+          </>
+        ) : (
+          <>
+            <span>{shared ? "✓" : "🔗"}</span>
+            <span>{shared ? "Link Copied!" : "Share with Your Valentine"}</span>
+          </>
+        )}
       </motion.button>
+
+      {/* Status link section */}
+      {senderToken && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="mt-4 pt-4 border-t border-burgundy/10"
+        >
+          <p className="text-xs font-semibold uppercase tracking-widest text-deep-rose mb-1">
+            Your Private Status Link
+          </p>
+          <p className="text-soft-ink text-sm mb-3">
+            Bookmark this to check if they responded:
+          </p>
+          <motion.button
+            onClick={handleCopyStatusLink}
+            whileHover={{ y: -1 }}
+            whileTap={{ scale: 0.98 }}
+            className="w-full py-2.5 sm:py-3 rounded-md border-2 border-burgundy/20 text-burgundy font-semibold bg-white/50 hover:bg-white/80 hover:border-burgundy/30 transition-all text-sm sm:text-base flex items-center justify-center gap-2"
+          >
+            <span>{statusCopied ? "✓" : "📋"}</span>
+            <span>
+              {statusCopied ? "Copied!" : "Copy Status Link"}
+            </span>
+          </motion.button>
+        </motion.div>
+      )}
     </motion.div>
   );
-};
-
-export default ShareActions;
+}
